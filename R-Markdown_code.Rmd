@@ -1,0 +1,174 @@
+---
+title: "Time Series Analysis of Dublin's Airport Weather Data using R "
+author: "Farooq Shaikh-19200161"
+date: "04/11/2019"
+output:
+  pdf_document: default
+  word_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+## Question 1
+Deals with R markdown and submission format 
+
+
+## Question 2:
+Load in the data as an object called DublinAirport. Notice that you have to skip the first 19 lines contained in the file before beginning to read data. Line 20 contains thecolumn names. Display the structure of the dataset.
+
+Loading the dataset by skipping first 19 rows and displaying its structure
+
+```{r}
+DublinAirport <- read.csv("D:/Documents/R/Assignment 2/mly532.csv", skip = 19)
+str(DublinAirport, strict.wrap ='TRUE')
+```
+
+## Question 3: Transform the column months to a factor with labels given by the month names.
+
+ Transforming Column months to a factor
+```{r}
+monthnames = factor(DublinAirport$month,labels=month.name)
+DublinAirport$month <-monthnames
+head(DublinAirport)
+```
+
+## Question 4: Use the aggregate function to compute which month has on average the highest and the lowest Precipitation Amount
+```{r}
+agg_mean <- aggregate(DublinAirport$rain,by=list(DublinAirport$month),FUN=mean, na.rm=TRUE)
+agg_mean<-order(agg_mean[,2],decreasing=T)
+print(paste0("Month with highest average precipitation amount is ",month.name[agg_mean[1]]))
+print(paste0("Month with lowest average precipitation amount is ",month.name[agg_mean[12]]))
+
+```
+
+## Question 5: Create a new column which contains a factor indicating the season
+• Winter: December, January, February,
+• Spring: March, April, May,
+• Summer: June, July, August,
+• Autumn: September, October, November
+
+```{r}
+library(zoo)
+monthnames <-(DublinAirport$month)
+yq <- as.yearqtr(as.numeric(monthnames))/12
+DublinAirport$Season <- factor(format(yq, "%q"), levels = 1:4, 
+                labels = c("winter", "spring", "summer", "Autumn"))
+head(DublinAirport)
+
+```
+
+
+
+## Question 6: Assign to the DublinAiport object the classes WeatherData and data.frame
+
+```{r}
+class(DublinAirport)<- c('WeatherData','data.frame')
+str(DublinAirport, strict.wrap='TRUE')
+```
+
+## Question 7 
+
+Write an S3 summary method for an object of class WeatherData which produces
+the following statistical summaries the rain, maxtp, mintp, maxgt variables split by
+season: mean, standard deviation, minimum, maximum. Ignore the missing values in
+the calculations.
+Test your function on the DublinAirport data set and comment your findings. 
+```{r}
+
+summary.WeatherData <- function(obj) 
+{
+  col_names <- c('winter', 'spring', 'summer', 'autumn')
+  df <- data.frame(Season <- col_names)
+  rain <- split(obj$rain, obj$Season)
+  maxtp <- split(obj$maxtp, obj$Season)
+  mintp <- split(obj$mintp, obj$Season)
+  maxgt <- split(obj$maxgt, obj$Season)
+  funs <- c('mean', 'sd', 'max', 'min')
+  for(i in 1:length(funs)){
+    df[paste('rain.',funs[i])] <- data.frame(sapply(rain, funs[i], na.rm=TRUE))
+  }
+  for(i in 1:length(funs)){
+    df[paste('maxtp.',funs[i])] <- data.frame(sapply(maxtp, funs[i], na.rm=TRUE))
+  }
+  for(i in 1:length(funs)){
+    df[paste('mintp.',funs[i])] <- data.frame(sapply(mintp, funs[i], na.rm=TRUE))
+  }
+  for(i in 1:length(funs)){
+    df[paste('maxgt.',funs[i])] <- data.frame(sapply(maxgt, funs[i], na.rm=TRUE))
+  }
+  head(df) 
+}
+
+summary.WeatherData(DublinAirport)
+
+```
+Inference: It is evident from the Dublin Weather data collected over the years that climate is pleasant and warm only during the Summer season with average temperatures of 23 Degree Celsius.  The Winters are very cold with average temperature hovering around averaging around -3 Degree Celsius. It is also evident from the data that Dublin is a windy city and the gust levels stay almost constant throughout the year. It rains throughout the year and but most of the rainfall occurs during the Winter Season.Ovrall, we can see that the weather is good during summer and most of the autumn season and these two seasons are best time to visit Dublin for a vaccation.
+
+## Question 8
+ Create an S3 plot method for the class WeatherData that produces the following plots
+(1) Plot of the monthly Air Temperature (C) (maxtp, mintp)
+(2) Plot of the Precipitation Amount (mm) (rain).
+(3) Plot of the Highest Gust (knot) (maxgt)
+
+```{r fig.height = 7, fig.width = 7, fig.align = "center"}
+plot.WeatherData <- function(obj, lower_year = 2015, upper_year=2018, plot_set = 0){
+  #Plot_set = 0 to show all graphs
+  #plot_set = 1 to show plot of monthly airtemp
+  #plot_set = 2 to show plot of percipitation amount in mm
+  #plot_set = 3 to show plot of highest gust in knot
+  
+  dataset <- obj[which(obj$year > lower_year & obj$year < upper_year),]
+  
+  airtemptimeseriesmax <- ts(dataset$maxtp, frequency=12,
+                             start=c(lower_year,1), end = c(upper_year,12))
+  airtemptimeseriesmin <- ts(dataset$mintp, frequency=12 ,
+                             start=c(lower_year,1), end = c(upper_year,12))
+  preciptimeseries <- ts(dataset$rain, frequency=12, 
+                         start=c(lower_year,1), end = c(upper_year,12))
+  gustimeseries <- ts(dataset$maxgt, frequency=12, 
+                      start=c(lower_year,1), end = c(upper_year,12))
+  
+  if (plot_set == 0){
+    ts.plot(airtemptimeseriesmax, airtemptimeseriesmin, preciptimeseries,
+            gustimeseries, gpars = 
+              list(ylab="Values", col = c("black", "red", "blue", "green"),lty=c(1:4)))
+    par(xpd=TRUE)
+    title(main =paste0('Time Series Graph of all features for years:',
+                    lower_year,'-',upper_year))
+    legend("topright", inset=c(0.7,0), legend = c("tpmax","tpmin", "rain", "maxgt"), 
+           col = c("black", "red", "blue", "green"), lty = 1:4)
+    
+  }
+  
+  if (plot_set == 1){
+    ts.plot(airtemptimeseriesmax, airtemptimeseriesmin, 
+            gpars = list(ylab="Values", col = c("black", "red"),lty = 1:2))
+    par(xpd=TRUE)
+    title(main =paste0('Time Series Graph of maxtp and mintp for years:',
+                lower_year,'-',upper_year))
+    legend("top", inset=c(0.0,0), legend = c("tpmax","tpmin"), 
+           col = c("black", "red"), lty = 1:2)
+    
+  }
+  if (plot_set == 2){
+    ts.plot(preciptimeseries, gpars = list(ylab="Rain Values in mm", col="blue"))
+     title(main=paste0('Time Series Graph of Rain for years:',
+                lower_year,'-',upper_year))
+  }
+  if (plot_set == 3){
+     ts.plot(gustimeseries, gpars = list(ylab="Highest Gust Values in Knots", col= "red"))
+     title(main=paste0('Time Series Graph of Highest Gust for years:',
+                lower_year,'-',upper_year))
+  }
+}
+plot.WeatherData(DublinAirport, 2015, 2018, 0)
+plot.WeatherData(DublinAirport, 2015, 2018, 1)
+plot.WeatherData(DublinAirport, 2015, 2018, 2)
+plot.WeatherData(DublinAirport, 2015, 2018, 3)
+
+```
+
